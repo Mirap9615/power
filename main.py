@@ -281,6 +281,7 @@ class MageCreator:
         """Save the current mage to the CMD."""
         mage_data = self.extract_mage_data()
         save_mage_to_cmd(mage_data)
+        self.root.destroy()
 
     def override_value(self, var, entry, scale):
         try:
@@ -293,6 +294,57 @@ class MageCreator:
             pass
 
 
+class MageEdit(MageCreator):
+    def __init__(self, parent, mage_data):
+        super().__init__(parent)
+
+        # Overwrite the current_mage data with the passed mage_data
+        self.current_mage.load_from_dict(mage_data)
+
+        # Update the GUI elements with the mage's data
+        self.name_var.set(self.current_mage.get_name())
+        self.age_var.set(self.current_mage.get_age())
+
+
+class MageDisplay:
+    def __init__(self, root):
+        self.root = root
+
+    @classmethod
+    def see_mages(cls):
+        # Create a new window to display mages
+        new_window = tk.Toplevel()
+        new_window.title("Mages Overview")
+        new_window.geometry("1000x600")  # Adjust size as needed
+
+        mages = load_mages_from_cmd()
+
+        if not mages:
+            ttk.Label(new_window, text="No mages found.").pack(pady=20)
+            return
+
+        # Header
+        header_labels = ["Name", "Age", "Description", "Years Practicing", "Personality", "Power"]
+        for col, attribute in enumerate(header_labels):
+            ttk.Label(new_window, text=attribute, font=('Arial', 10, 'bold')).grid(row=0, column=col, padx=30, pady=10)
+
+        # Populate the mages
+        for row, mage in enumerate(mages, start=1):
+            ttk.Label(new_window, text=mage["name"]).grid(row=row, column=0, padx=30, pady=0)
+            ttk.Label(new_window, text=mage["age"]).grid(row=row, column=1, padx=5, pady=5)
+            ttk.Label(new_window, text=mage["description"]).grid(row=row, column=2, padx=5, pady=5)
+            ttk.Label(new_window, text=mage["years_practicing"]).grid(row=row, column=3, padx=5, pady=5)
+            ttk.Label(new_window, text=mage["personality"]).grid(row=row, column=4, padx=5, pady=5)
+            ttk.Label(new_window, text=mage["power"]).grid(row=row, column=5, padx=5, pady=5)
+
+            edit_button = ttk.Button(new_window, text="Edit", command=lambda mage=mage: MageEdit(new_window, mage))
+            edit_button.grid(row=row, column=6, padx=5, pady=5)
+
+        # Add a scrollbar if needed
+        scrollbar = tk.Scrollbar(new_window)
+        scrollbar.grid(row=1, column=8, sticky='ns')
+        new_window.grid_rowconfigure(1, weight=0)
+
 class MageInteractive:
     def __init__(self, root):
         self.root = root
@@ -301,6 +353,12 @@ class MageInteractive:
 
         # Button to open MageCreator
         self.create_mage_button = ttk.Button(root, text="Create Mage", command=self.open_mage_creator)
+        self.create_mage_button.pack(pady=20)
+
+        self.create_mage_button = ttk.Button(root, text="Load Mage")
+        self.create_mage_button.pack(pady=20)
+
+        self.create_mage_button = ttk.Button(root, text="See Mages", command=MageDisplay.see_mages)
         self.create_mage_button.pack(pady=20)
 
     def open_mage_creator(self):

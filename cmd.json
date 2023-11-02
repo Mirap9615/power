@@ -15,5 +15,39 @@
         "speed": 100,
         "intelligence": 100,
         "id": "7218ea1d-bf07-448e-946c-633e99d8f045"
+    },
+    {
+        "name": "c",
+        "age": 0,
+        "description": "",
+        "years_practicing": 0,
+        "personality": "",
+        "power": 14.6,
+        "health": 100,
+        "mana": 100,
+        "stamina": 100,
+        "defense": 10,
+        "phys_atk": 4,
+        "mag_atk": 0,
+        "speed": 100,
+        "intelligence": 100,
+        "id": "1372fa9f-6039-4ec7-a7fa-7b4c52ded3ea"
+    },
+    {
+        "name": "hhh",
+        "age": 0,
+        "description": "",
+        "years_practicing": 0,
+        "personality": "",
+        "power": 14.6,
+        "health": 100,
+        "mana": 100,
+        "stamina": 100,
+        "defense": 10,
+        "phys_atk": 4,
+        "mag_atk": 0,
+        "speed": 100,
+        "intelligence": 100,
+        "id": "5ffeeb1f-3c86-4cb9-a8e3-24c311edc7a7"
     }
 ]
