@@ -41,32 +41,15 @@ def save_mage_to_cmd(mage_data):
 def update_mage_in_cmd(updated_mage_data):
     mages = load_mages_from_cmd()
 
-    # Print out the updated mage data
-    print("Updated Mage Data:", updated_mage_data)
-
     # Find the mage to update and replace it
     for i, mage in enumerate(mages):
-        print(f"Checking mage with ID: {mage['id']}")
         if mage["id"] == updated_mage_data["id"]:
-            # Print the mage before updating
-            print("Mage Before Update:", mage)
-
             mages[i] = updated_mage_data
-
-            # Print the mage after updating
-            print("Mage After Update:", mages[i])
             break
-
-    # Print entire mages list before saving
-    print("Mages List Before Saving:", mages)
 
     # Save the updated list of mages
     with open(CMD_FILENAME, 'w') as file:
         json.dump(mages, file)
-
-    # Optional: Load and print the saved mages list to verify
-    saved_mages = load_mages_from_cmd()
-    print("Saved Mages List:", saved_mages)
 
 
 def calculate_power(hp, mana, stamina, defense, phys_atk, mag_atk, speed, intelligence):
@@ -385,11 +368,6 @@ class StatsVisualizerForEdit:
         self.mage = mage
         self.update_callback = update_callback
         self.stats_window = tk.Toplevel(self.parent)
-        self.create_widgets()
-        self.update_widgets_from_mage()
-
-    def create_widgets(self):
-        # Create and place widgets similar to the original StatsVisualizer
         self.stats_vars = {
             "health": tk.DoubleVar(),
             "mana": tk.DoubleVar(),
@@ -400,16 +378,35 @@ class StatsVisualizerForEdit:
             "speed": tk.DoubleVar(),
             "intelligence": tk.DoubleVar(),
         }
+        self.original_stats = {stat: mage.get_stat(stat) for stat in self.stats_vars}
+        self.create_widgets()
+        self.update_widgets_from_mage()
+
+    def create_widgets(self):
+        # Create and place widgets similar to the original StatsVisualizer
+
+        # Temporary storage for Entry values before confirmation
+        self.entry_values = {stat: tk.StringVar() for stat in self.stats_vars}
 
         self.stats_controls = {}
         for i, (stat, var) in enumerate(self.stats_vars.items()):
             ttk.Label(self.stats_window, text=stat.capitalize()).grid(row=i, column=0, sticky="w", padx=10, pady=5)
             scale = tk.Scale(self.stats_window, from_=0, to=200, orient="horizontal", variable=var, resolution=1)
             scale.grid(row=i, column=2, sticky="ew", padx=10, pady=5)
-            entry = ttk.Entry(self.stats_window, width=5, textvariable=var)
+            scale.bind("<B1-Motion>", lambda event, s=stat, v=var: self.on_scale_change(s, v.get()))
+
+            entry = ttk.Entry(self.stats_window, width=5, textvariable=self.entry_values[stat])
             entry.grid(row=i, column=3, padx=10, pady=5)
-            scale.bind("<Motion>", lambda event, s=stat, v=var: self.on_scale_change(s, v.get()))
-            self.stats_controls[stat] = (scale, entry)
+
+            button = ttk.Button(self.stats_window, text="Override",
+                                command=lambda v=var, e=entry, s=scale, stat=stat: self.override_value(v, e, s, stat))
+            button.grid(row=i, column=4, padx=10, pady=5)
+
+            reset_button = ttk.Button(self.stats_window, text="Reset",
+                                      command=lambda s=stat: self.reset_stat(s))
+            reset_button.grid(row=i, column=5, padx=10, pady=5)
+
+            self.stats_controls[stat] = (scale, entry, button)
 
         self.power_label = ttk.Label(self.stats_window, text="Total Power: -")
         self.power_label.grid(row=len(self.stats_vars), column=0, columnspan=5, pady=20)
@@ -429,6 +426,17 @@ class StatsVisualizerForEdit:
         mage_data = self.extract_mage_data_for_update()
         if self.update_callback:
             self.update_callback(mage_data)
+
+    def reset_stat(self, stat):
+        # Get the original value for the stat
+        original_value = self.original_stats[stat]
+        # Get the scale and entry widgets for the stat
+        scale, entry, _ = self.stats_controls[stat]
+        # Set the entry to the original value
+        entry.delete(0, tk.END)
+        entry.insert(0, str(original_value))
+        # Call the override_value method to handle updating the scale and the mage's stat
+        self.override_value(self.stats_vars[stat], entry, scale, stat)
 
     def extract_mage_data_for_update(self):
         """Extract mage data from the StatsVisualizerForEdit to a dictionary format."""
@@ -474,6 +482,18 @@ class StatsVisualizerForEdit:
             intelligence=stat_values['intelligence']
         )
         self.power_label.config(text=f"Total Power: {power:.2f}")
+
+    def override_value(self, var, entry, scale, stat):
+        try:
+            value = float(self.entry_values[stat].get())
+            if value > scale.cget("to") or value < scale.cget("from"):
+                new_max = max(value, 200)
+                scale.config(from_=0, to=new_max)
+            var.set(value)
+            self.on_scale_change(stat, value)
+        except ValueError:
+            # Provide feedback to the user that the input was not valid.
+            pass
 
     def show(self):
         # This method can be called to display the StatsVisualizer window
