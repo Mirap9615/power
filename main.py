@@ -363,6 +363,7 @@ class MageCreator:
 
 
 class StatsVisualizerForEdit:
+
     def __init__(self, parent, mage, update_callback):
         self.parent = parent
         self.mage = mage
@@ -379,19 +380,26 @@ class StatsVisualizerForEdit:
             "intelligence": tk.DoubleVar(),
         }
         self.original_stats = {stat: mage.get_stat(stat) for stat in self.stats_vars}
+        self.default_max_values = {
+            "health": 200,
+            "mana": 200,
+            "stamina": 200,
+            "defense": 200,
+            "phys_atk": 20,
+            "mag_atk": 20,
+            "speed": 200,
+            "intelligence": 200,
+        }
         self.create_widgets()
         self.update_widgets_from_mage()
 
     def create_widgets(self):
-        # Create and place widgets similar to the original StatsVisualizer
-
-        # Temporary storage for Entry values before confirmation
         self.entry_values = {stat: tk.StringVar() for stat in self.stats_vars}
-
         self.stats_controls = {}
         for i, (stat, var) in enumerate(self.stats_vars.items()):
             ttk.Label(self.stats_window, text=stat.capitalize()).grid(row=i, column=0, sticky="w", padx=10, pady=5)
-            scale = tk.Scale(self.stats_window, from_=0, to=200, orient="horizontal", variable=var, resolution=1)
+            scale_max = self.default_max_values[stat]
+            scale = tk.Scale(self.stats_window, from_=0, to=scale_max, orient="horizontal", variable=var, resolution=1)
             scale.grid(row=i, column=2, sticky="ew", padx=10, pady=5)
             scale.bind("<B1-Motion>", lambda event, s=stat, v=var: self.on_scale_change(s, v.get()))
 
@@ -428,15 +436,18 @@ class StatsVisualizerForEdit:
             self.update_callback(mage_data)
 
     def reset_stat(self, stat):
-        # Get the original value for the stat
+        # Reset the stat to the original value
         original_value = self.original_stats[stat]
-        # Get the scale and entry widgets for the stat
-        scale, entry, _ = self.stats_controls[stat]
-        # Set the entry to the original value
+        scale, entry, button = self.stats_controls[stat]  # Corrected order
+
+        # Use the original value as the priority value
+        self.override_value(var=scale, entry=entry, scale=scale, stat=stat, priority_value=original_value)
+
+        scale.set(original_value)  # This should work now since scale is actually the scale widget
+        # Update the entry box and the total power label
         entry.delete(0, tk.END)
         entry.insert(0, str(original_value))
-        # Call the override_value method to handle updating the scale and the mage's stat
-        self.override_value(self.stats_vars[stat], entry, scale, stat)
+        self.update_power_label()
 
     def extract_mage_data_for_update(self):
         """Extract mage data from the StatsVisualizerForEdit to a dictionary format."""
@@ -483,20 +494,25 @@ class StatsVisualizerForEdit:
         )
         self.power_label.config(text=f"Total Power: {power:.2f}")
 
-    def override_value(self, var, entry, scale, stat):
+    def override_value(self, var, entry, scale, stat, priority_value=None):
         try:
-            value = float(self.entry_values[stat].get())
-            if value > scale.cget("to") or value < scale.cget("from"):
-                new_max = max(value, 200)
+            value = float(entry.get())
+
+            if priority_value is not None:
+                new_max = max(2 * priority_value, self.default_max_values[stat])
+            else:
+                new_max = max(2 * value, self.default_max_values[stat])
+
+            if value > scale.cget("to") or value < scale.cget("from") or priority_value is not None:
                 scale.config(from_=0, to=new_max)
+
             var.set(value)
+            scale.set(value)
             self.on_scale_change(stat, value)
         except ValueError:
-            # Provide feedback to the user that the input was not valid.
             pass
 
     def show(self):
-        # This method can be called to display the StatsVisualizer window
         self.stats_window.deiconify()
 
 
@@ -504,7 +520,6 @@ class MageEdit(MageCreator):
     def __init__(self, parent, mage_data, on_close_callback=None):
 
         self.edit_window = tk.Toplevel(parent)
-        # First, initialize Mage object with the provided mage_data
         self.current_mage = Mage()
 
         super().__init__(self.edit_window)
@@ -527,14 +542,11 @@ class MageEdit(MageCreator):
 
         self.adjust_stats_button.destroy()
 
-        # Instead of DoubleVar for power, use a StringVar
         self.power_var = tk.DoubleVar(value=self.current_mage.power)
         self.power_str_var = tk.StringVar(value=f"{self.current_mage.power:.2f}")
 
-        # Create a trace on the DoubleVar to update the StringVar when the DoubleVar changes
         self.power_var.trace_add("write", self.update_power_display)
 
-        # Use the StringVar for the label's textvariable
         self.power_label = ttk.Label(self.edit_window, textvariable=self.power_str_var)
         self.power_label.grid(row=5, column=1, padx=10, pady=5)
 
@@ -549,11 +561,9 @@ class MageEdit(MageCreator):
         self.edit_window.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def update_power_display(self, *args):
-        # Update the StringVar with a rounded value whenever the DoubleVar changes
         self.power_str_var.set(f"{self.power_var.get():.2f}")
 
     def update_gui_from_mage(self, mage_data):
-        # This function sets the GUI variables based on the mage data provided
 
         self.name_var.set(mage_data['name'])
         self.age_var.set(mage_data['age'])
@@ -631,7 +641,6 @@ class MageEdit(MageCreator):
 
         def update_callback(power):
             # This function will be called when the stats are adjusted in StatsVisualizer
-            # Update the MageEdit's mage stats here
             self.current_mage.set_stat("health", self.health_var.get())
             self.current_mage.set_stat("mana", self.mana_var.get())
             self.current_mage.set_stat("stamina", self.stamina_var.get())
@@ -657,10 +666,9 @@ class MageDisplay:
         self.mage_widgets.clear()
 
     def refresh_mages(self):
-        # Clear only the mage entries, not the headers
-        for widget in self.mage_widgets[6:]:  # Assuming 6 headers
+        for widget in self.mage_widgets[6:]:
             widget.destroy()
-        self.mage_widgets = self.mage_widgets[:6]  # Keep the headers
+        self.mage_widgets = self.mage_widgets[:6]
         self.populate_mages()
 
     def see_mages(self):
@@ -670,7 +678,6 @@ class MageDisplay:
             self.new_window.title("Mages Overview")
             self.new_window.geometry("1000x600")
 
-            # Create headers only once
             header_labels = ["Name", "Age", "Description", "Years Practicing", "Personality", "Power"]
             for col, attribute in enumerate(header_labels):
                 header = ttk.Label(self.new_window, text=attribute, font=('Arial', 10, 'bold'))
@@ -688,7 +695,6 @@ class MageDisplay:
             self.mage_widgets.append(label)
             return
 
-        # Populate the mages
         for row, mage in enumerate(mages, start=1):
             # Create labels for each attribute
             name_label = ttk.Label(self.new_window, text=mage["name"])
@@ -704,7 +710,6 @@ class MageDisplay:
                 ), 2)
                                     )
 
-            # Add labels to the grid
             name_label.grid(row=row, column=0, padx=30, pady=0)
             age_label.grid(row=row, column=1, padx=5, pady=5)
             description_label.grid(row=row, column=2, padx=5, pady=5)
@@ -712,14 +717,12 @@ class MageDisplay:
             personality_label.grid(row=row, column=4, padx=5, pady=5)
             power_label.grid(row=row, column=5, padx=5, pady=5)
 
-            # Add edit button
             edit_button = ttk.Button(
                 self.new_window, text="Edit",
                 command=lambda m=mage: self.open_mage_edit(m)
             )
             edit_button.grid(row=row, column=6, padx=5, pady=5)
 
-            # Save the widgets to the list
             self.mage_widgets.extend([
                 name_label, age_label, description_label, years_practicing_label,
                 personality_label, power_label, edit_button
@@ -739,7 +742,6 @@ class MageInteractive:
         self.root.title("Mage Interactive")
         self.root.geometry("800x400")
 
-        # Button to open MageCreator
         self.create_mage_button = ttk.Button(root, text="Create Mage", command=self.open_mage_creator)
         self.create_mage_button.pack(pady=20)
 
@@ -750,12 +752,10 @@ class MageInteractive:
         self.create_mage_button.pack(pady=20)
 
     def open_mage_creator(self):
-        # Launch MageCreator in a new window
         new_window = tk.Toplevel(self.root)
         MageCreator(new_window)
 
     def open_mage_display(self):
-        # Create an instance of MageDisplay and call see_mages on it
         mage_display = MageDisplay(self.root)
         mage_display.see_mages()
 
