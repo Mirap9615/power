@@ -379,6 +379,107 @@ class MageCreator:
             pass
 
 
+class StatsVisualizerForEdit:
+    def __init__(self, parent, mage, update_callback):
+        self.parent = parent
+        self.mage = mage
+        self.update_callback = update_callback
+        self.stats_window = tk.Toplevel(self.parent)
+        self.create_widgets()
+        self.update_widgets_from_mage()
+
+    def create_widgets(self):
+        # Create and place widgets similar to the original StatsVisualizer
+        self.stats_vars = {
+            "health": tk.DoubleVar(),
+            "mana": tk.DoubleVar(),
+            "stamina": tk.DoubleVar(),
+            "defense": tk.DoubleVar(),
+            "phys_atk": tk.DoubleVar(),
+            "mag_atk": tk.DoubleVar(),
+            "speed": tk.DoubleVar(),
+            "intelligence": tk.DoubleVar(),
+        }
+
+        self.stats_controls = {}
+        for i, (stat, var) in enumerate(self.stats_vars.items()):
+            ttk.Label(self.stats_window, text=stat.capitalize()).grid(row=i, column=0, sticky="w", padx=10, pady=5)
+            scale = tk.Scale(self.stats_window, from_=0, to=200, orient="horizontal", variable=var, resolution=1)
+            scale.grid(row=i, column=2, sticky="ew", padx=10, pady=5)
+            entry = ttk.Entry(self.stats_window, width=5, textvariable=var)
+            entry.grid(row=i, column=3, padx=10, pady=5)
+            scale.bind("<Motion>", lambda event, s=stat, v=var: self.on_scale_change(s, v.get()))
+            self.stats_controls[stat] = (scale, entry)
+
+        self.power_label = ttk.Label(self.stats_window, text="Total Power: -")
+        self.power_label.grid(row=len(self.stats_vars), column=0, columnspan=5, pady=20)
+
+    def update_widgets_from_mage(self):
+        for stat, var in self.stats_vars.items():
+            var.set(self.mage.get_stat(stat))
+
+        self.update_power_label()
+
+    def on_scale_change(self, stat_name, value):
+        # Update the mage's stat when the scale is changed using the set_stat method
+        self.mage.set_stat(stat_name, value)
+        self.update_power_label()
+
+        # Extract mage data and pass it to the update callback
+        mage_data = self.extract_mage_data_for_update()
+        if self.update_callback:
+            self.update_callback(mage_data)
+
+    def extract_mage_data_for_update(self):
+        """Extract mage data from the StatsVisualizerForEdit to a dictionary format."""
+        mage_data = {
+            "name": self.mage.get_name(),
+            "age": self.mage.get_age(),
+            "description": self.mage.get_description(),
+            "years_practicing": self.mage.get_years_practicing(),
+            "personality": self.mage.get_personality(),
+            "health": self.mage.get_stat('health'),
+            "mana": self.mage.get_stat('mana'),
+            "stamina": self.mage.get_stat('stamina'),
+            "defense": self.mage.get_stat('defense'),
+            "phys_atk": self.mage.get_stat('phys_atk'),
+            "mag_atk": self.mage.get_stat('mag_atk'),
+            "speed": self.mage.get_stat('speed'),
+            "intelligence": self.mage.get_stat('intelligence'),
+            "id": self.mage.id,
+        }
+        return mage_data
+
+    def update_power_label(self):
+        stat_values = {
+            'hp': self.mage.get_stat("health"),
+            'mana': self.mage.get_stat("mana"),
+            'stamina': self.mage.get_stat("stamina"),
+            'defense': self.mage.get_stat("defense"),
+            'phys_atk': self.mage.get_stat("phys_atk"),
+            'mag_atk': self.mage.get_stat("mag_atk"),
+            'speed': self.mage.get_stat("speed"),
+            'intelligence': self.mage.get_stat("intelligence"),
+        }
+
+        # Calculate power
+        power = calculate_power(
+            hp=stat_values['hp'],
+            mana=stat_values['mana'],
+            stamina=stat_values['stamina'],
+            defense=stat_values['defense'],
+            phys_atk=stat_values['phys_atk'],
+            mag_atk=stat_values['mag_atk'],
+            speed=stat_values['speed'],
+            intelligence=stat_values['intelligence']
+        )
+        self.power_label.config(text=f"Total Power: {power:.2f}")
+
+    def show(self):
+        # This method can be called to display the StatsVisualizer window
+        self.stats_window.deiconify()
+
+
 class MageEdit(MageCreator):
     def __init__(self, parent, mage_data, on_close_callback=None):
 
@@ -386,7 +487,6 @@ class MageEdit(MageCreator):
         # First, initialize Mage object with the provided mage_data
         self.current_mage = Mage()
 
-        print(f"ID before super init: {self.current_mage.id}")
         super().__init__(self.edit_window)
         self.current_mage.load_completely(mage_data)
         self.current_mage.id = mage_data['id']
@@ -402,14 +502,24 @@ class MageEdit(MageCreator):
         self.speed_var = tk.DoubleVar(value=self.current_mage.get_stat("speed"))
         self.intelligence_var = tk.DoubleVar(value=self.current_mage.get_stat("intelligence"))
 
-        print(f"ID after super init: {self.current_mage.id}")
-
         self.edit_window.title("Mage Editor")
         self.update_gui_from_mage(mage_data)
 
         self.adjust_stats_button.destroy()
+
+        # Instead of DoubleVar for power, use a StringVar
+        self.power_var = tk.DoubleVar(value=self.current_mage.power)
+        self.power_str_var = tk.StringVar(value=f"{self.current_mage.power:.2f}")
+
+        # Create a trace on the DoubleVar to update the StringVar when the DoubleVar changes
+        self.power_var.trace_add("write", self.update_power_display)
+
+        # Use the StringVar for the label's textvariable
+        self.power_label = ttk.Label(self.edit_window, textvariable=self.power_str_var)
+        self.power_label.grid(row=5, column=1, padx=10, pady=5)
+
         self.adjust_stats_button = ttk.Button(self.edit_window, text="Adjust Stats",
-                                              command=self.open_stats_visualizer_from_edit)
+                                              command=self.open_stats_visualizer)
         self.adjust_stats_button.grid(row=5, column=2, padx=10, pady=5)
 
         self.save_button.config(command=self.save_edited_mage)
@@ -417,6 +527,10 @@ class MageEdit(MageCreator):
         self.on_close_callback = on_close_callback
 
         self.edit_window.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def update_power_display(self, *args):
+        # Update the StringVar with a rounded value whenever the DoubleVar changes
+        self.power_str_var.set(f"{self.power_var.get():.2f}")
 
     def update_gui_from_mage(self, mage_data):
         # This function sets the GUI variables based on the mage data provided
@@ -444,6 +558,14 @@ class MageEdit(MageCreator):
         self.mag_atk_var.set(mage_data['mag_atk'])
         self.speed_var.set(mage_data['speed'])
         self.intelligence_var.set(mage_data['intelligence'])
+
+    def open_stats_visualizer(self):
+        self.stats_visualizer = StatsVisualizerForEdit(
+            self.edit_window,
+            self.current_mage,
+            self.update_gui_from_mage
+        )
+        self.stats_visualizer.show()
 
     def update_mage_from_gui(self):
         self.current_mage.set_name(self.name_var.get())
@@ -584,12 +706,9 @@ class MageDisplay:
             ])
 
     def open_mage_edit(self, mage):
-        # Check if the MageEdit window for this mage is already open
         if mage["id"] in self.mage_edit_windows and self.mage_edit_windows[mage["id"]].edit_window.winfo_exists():
-            # Bring the MageEdit window to the front if it's already open
             self.mage_edit_windows[mage["id"]].edit_window.lift()
         else:
-            # Open a new MageEdit window
             edit_window = MageEdit(self.new_window, mage, self.refresh_mages)
             self.mage_edit_windows[mage["id"]] = edit_window
 
